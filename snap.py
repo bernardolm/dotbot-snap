@@ -1,42 +1,50 @@
-import subprocess, dotbot
-from typing import List, Dict
+import subprocess
+from typing import Dict, List
+
+import dotbot
+
 
 class Snap(dotbot.Plugin):
     _directive = 'snap'
 
-
     def can_handle(self, directive: str):
         return self._directive == directive
 
-    def handle(self, directive: str , data: List):
+    def handle(self, directive: str, data: List):
         if directive != self._directive:
-            raise ValueError('snap cannot handle directive %s' %
-                directive)
-        
-        success = True
-        defaults = self._context.defaults().get(self._directive, {})
-        for item in data:
+            raise ValueError(f'snap cannot handle directive {directive}')
 
-            classic = defaults.get("classic", False)
-            app = None
+        defaults = self._context.defaults().get(self._directive, {})
+        classic_defauls = defaults.get("classic", False)
+
+        command_prefix = 'snap install'
+        commands = []
+        apps = []
+        success = True
+
+        for item in data:
+            name = item
+            is_classic = classic_defauls
 
             if isinstance(item, Dict):
-                app, options = list(item.items())[0]
-                if options is not None:
-                    classic = options[0].get("classic", classic)
-            else:
-                app = item
-            
-            try:
-                command = ['snap install']
-                if classic:
-                    command.append("--classic")
-                command.append(app)
+                name = next(iter(item))
+                if name:
+                    options = item.get(name)
+                    if options:
+                        is_classic = options.get('classic', classic_defauls)
 
-                subprocess.run(
-                        [' '.join(command)], 
-                        shell=True, 
-                        check=True)
+            if is_classic:
+                commands.append(f'{command_prefix} --classic {name}')
+            else:
+                apps.append(name)
+
+        app_list = ' '.join(apps)
+        if app_list:
+            commands.append(f'{command_prefix} {app_list}')
+
+        for cmd in commands:
+            try:
+                subprocess.run(cmd, shell=True, check=True)
             except subprocess.CalledProcessError:
                 success = False
 
@@ -44,4 +52,5 @@ class Snap(dotbot.Plugin):
             self._log.info('All packages have been installed')
         else:
             self._log.error('Some packages were not successfully installed')
+
         return success
